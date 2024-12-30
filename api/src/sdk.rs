@@ -72,6 +72,7 @@ pub fn create_payout(
     payout: Pubkey,
     payout_main_token_account: Pubkey,
     main_mint: Pubkey,
+    protocol_fee_token_account: Pubkey,
     amount: u64,
 ) -> Instruction {
     Instruction {
@@ -84,6 +85,7 @@ pub fn create_payout(
             AccountMeta::new(payout, false),
             AccountMeta::new(payout_main_token_account, false),
             AccountMeta::new_readonly(main_mint, false),
+            AccountMeta::new(protocol_fee_token_account, false),
             AccountMeta::new_readonly(spl_token::ID, false),
             AccountMeta::new_readonly(solana_program::system_program::ID, false),
         ],

@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use solana_program::program::invoke;
 use spl_associated_token_account::{
     solana_program::program_pack::Pack, tools::account::create_pda_account,
@@ -7,15 +9,31 @@ use steel::*;
 use sysvar::rent::Rent;
 use yoko_program_api::prelude::*;
 
+const PROTOCOL_FEE: u64 = 1; // 1%
+const PROTOCOL_FEE_TOKEN_ACCOUNT_OWNER: &str = "H61JjSDPCwvAs1k2vaPAX6d917Pu4dPWykcexvXXzGph";
+
 pub fn process_create_payout(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
     let args = CreatePayout::try_from_bytes(data)?;
     let amount = u64::from_le_bytes(args.amount);
 
-    let [fund_authority_info, fund_authority_token_account_info, fund_info, fund_main_token_account_info, payout_info, payout_main_token_account_info, main_mint_info, token_program, system_program] =
+    let [fund_authority_info, fund_authority_token_account_info, fund_info, fund_main_token_account_info, payout_info, payout_main_token_account_info, main_mint_info, protocol_fee_token_account_info, token_program, system_program] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
+
+    let protocol_fee_token_account_data =
+        SplTokenAccount::unpack(&protocol_fee_token_account_info.data.borrow())?;
+
+    if protocol_fee_token_account_data.owner
+        != Pubkey::from_str(PROTOCOL_FEE_TOKEN_ACCOUNT_OWNER).unwrap()
+    {
+        return Err(ProgramError::InvalidAccountData);
+    }
+
+    if protocol_fee_token_account_data.mint != *main_mint_info.key {
+        return Err(ProgramError::InvalidAccountData);
+    }
 
     fund_authority_info.is_signer()?.is_writable()?;
 
@@ -97,8 +115,17 @@ pub fn process_create_payout(accounts: &[AccountInfo<'_>], data: &[u8]) -> Progr
         .ok_or(ProgramError::InvalidArgument)?
         .checked_div(100)
         .ok_or(ProgramError::InvalidArgument)?;
+
+    let protocol_fee_amount = amount
+        .checked_mul(PROTOCOL_FEE)
+        .ok_or(ProgramError::InvalidArgument)?
+        .checked_div(100)
+        .ok_or(ProgramError::InvalidArgument)?;
+
     let rest_amount = amount
         .checked_sub(authority_amount)
+        .ok_or(ProgramError::InvalidArgument)?
+        .checked_sub(protocol_fee_amount)
         .ok_or(ProgramError::InvalidArgument)?;
 
     transfer_signed(
@@ -107,6 +134,15 @@ pub fn process_create_payout(accounts: &[AccountInfo<'_>], data: &[u8]) -> Progr
         fund_authority_token_account_info,
         token_program,
         authority_amount,
+        &[FUND, fund_authority_info.key.as_ref()],
+    )?;
+
+    transfer_signed(
+        fund_info,
+        fund_main_token_account_info,
+        protocol_fee_token_account_info,
+        token_program,
+        protocol_fee_amount,
         &[FUND, fund_authority_info.key.as_ref()],
     )?;
 

@@ -18,6 +18,8 @@ use yoko_program_api::{
 
 use crate::WSOL;
 
+const PROTOCOL_FEE_TOKEN_ACCOUNT_OWNER: &str = "H61JjSDPCwvAs1k2vaPAX6d917Pu4dPWykcexvXXzGph";
+
 #[derive(Deserialize)]
 pub struct GetCreatePayoutMsgPayload {
     pub fund: String,
@@ -59,6 +61,10 @@ pub async fn get_create_payout_msg(
         .unwrap();
     let main_mint_data = Mint::unpack(&main_mint_data).unwrap();
     let amount = (payload.amount * (10u64.pow(main_mint_data.decimals as u32) as f64)) as u64;
+    let protocol_fee_token_account = get_associated_token_address(
+        &Pubkey::from_str(PROTOCOL_FEE_TOKEN_ACCOUNT_OWNER).unwrap(),
+        &fund_data.main_mint,
+    );
     let create_payout_ixn = create_payout(
         fund_data.authority,
         fund_authority_token_account,
@@ -67,6 +73,7 @@ pub async fn get_create_payout_msg(
         payout,
         payout_main_token_account,
         fund_data.main_mint,
+        protocol_fee_token_account,
         amount,
     );
 

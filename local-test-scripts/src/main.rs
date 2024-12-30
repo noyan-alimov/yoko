@@ -31,9 +31,7 @@ struct YokoConfig {
 
 impl YokoConfig {
     fn new() -> Self {
-        let client = RpcClient::new(
-            "",
-        );
+        let client = RpcClient::new("");
         let fund_manager = read_keypair_file("/Users/noyan/.config/solana/id.json")
             .expect("Failed to load fund manager keypair");
         let depositor = read_keypair_file(
@@ -173,6 +171,10 @@ impl YokoConfig {
         let fund_data = self.get_fund()?.1;
         let payout = payout_pda(&fund, fund_data.payouts_counter + 1).0;
         let payout_main_token_account = payout_token_account_pda(&payout).0;
+        let protocol_fee_token_account = get_associated_token_address(
+            &Pubkey::from_str("H61JjSDPCwvAs1k2vaPAX6d917Pu4dPWykcexvXXzGph").unwrap(),
+            &fund_data.main_mint,
+        );
 
         let ixns = vec![
             create_associated_token_account_idempotent(
@@ -189,6 +191,7 @@ impl YokoConfig {
                 payout,
                 payout_main_token_account,
                 self.mint,
+                protocol_fee_token_account,
                 amount,
             ),
         ];
@@ -490,7 +493,8 @@ async fn main() {
 
     for mint in fund_data.other_mints.iter() {
         println!("mint: {:?}", mint);
-        let (token_account, token_account_data) = config.get_fund_token_account_data(*mint).unwrap();
+        let (token_account, token_account_data) =
+            config.get_fund_token_account_data(*mint).unwrap();
         println!("token_account: {:?}", token_account);
         println!("token_account_data: {:?}", token_account_data);
     }

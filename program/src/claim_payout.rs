@@ -40,10 +40,8 @@ pub fn process_claim_payout(accounts: &[AccountInfo<'_>]) -> ProgramResult {
 
     payout_main_token_account_info
         .has_seeds(&[PAYOUT, payout_info.key.as_ref()], &yoko_program_api::ID)?;
-    let payout_main_token_account_data =
-        SplTokenAccount::unpack(&payout_main_token_account_info.data.borrow())?;
 
-    let amount = (payout_main_token_account_data.amount as u128)
+    let amount = (payout.amount_transferred_on_creation as u128)
         .checked_mul(proportion)
         .ok_or(ProgramError::ArithmeticOverflow)?
         .checked_div(u128::pow(10, 9))

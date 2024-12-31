@@ -155,5 +155,7 @@ pub fn process_create_payout(accounts: &[AccountInfo<'_>], data: &[u8]) -> Progr
         &[FUND, fund_authority_info.key.as_ref()],
     )?;
 
+    payout.amount_transferred_on_creation = rest_amount;
+
     Ok(())
 }

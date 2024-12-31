@@ -33,14 +33,14 @@ account!(YokoProgramAccount, Fund);
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Pod, Zeroable)]
 pub struct ArraySet {
-    data: [Pubkey; 32],
+    data: [Pubkey; 96],
     len: u64,
 }
 
 impl ArraySet {
     pub const fn new() -> Self {
         Self {
-            data: [Pubkey::new_from_array([0; 32]); 32],
+            data: [Pubkey::new_from_array([0; 32]); 96],
             len: 0,
         }
     }
@@ -54,7 +54,7 @@ impl ArraySet {
     }
 
     pub fn is_full(&self) -> bool {
-        self.len as usize == 32
+        self.len as usize == 96
     }
 
     pub fn contains(&self, value: &Pubkey) -> bool {

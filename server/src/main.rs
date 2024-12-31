@@ -28,6 +28,7 @@ async fn main() {
             axum::http::header::CONTENT_TYPE,
             axum::http::header::AUTHORIZATION,
             axum::http::header::ACCEPT,
+            axum::http::header::ORIGIN,
         ])
         .allow_credentials(true);
 

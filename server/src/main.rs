@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{routing::post, Router};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 
 mod constants;
 mod endpoints;
@@ -18,11 +18,18 @@ async fn main() {
     let rpc_client = Arc::new(RpcClient::new(rpc_url.clone()));
 
     let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any)
-        .allow_credentials(true)
-        .expose_headers(Any);
+        .allow_origin(["https://yoko.fund".parse().unwrap()])
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::ACCEPT,
+        ])
+        .allow_credentials(true);
 
     let app = Router::<()>::new()
         .route(

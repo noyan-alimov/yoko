@@ -1,6 +1,10 @@
 use base64;
 use serde::Serialize;
+use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
 use solana_client::rpc_client::RpcClient;
+use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
+use solana_client::rpc_filter::{Memcmp, RpcFilterType};
+use solana_sdk::account::Account;
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::{
     message::v0::Message as MessageV0, program_pack::Pack, pubkey::Pubkey, signature::Signer,
@@ -8,9 +12,10 @@ use solana_sdk::{
 };
 use spl_associated_token_account::get_associated_token_address;
 use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
-use spl_token::state::Account;
+use spl_token::state::Account as SplTokenAccount;
 use std::str::FromStr;
 use steel::*;
+use yoko_program_api::state::ArraySet;
 use yoko_program_api::{
     sdk::{
         claim_payout, create_fund, create_fund_token_account, create_payout, create_position,
@@ -64,22 +69,22 @@ impl YokoConfig {
 
     fn get_fund_main_token_account_data(
         &self,
-    ) -> Result<(Pubkey, Account), Box<dyn std::error::Error>> {
+    ) -> Result<(Pubkey, SplTokenAccount), Box<dyn std::error::Error>> {
         let (fund, fund_data) = self.get_fund()?;
         let token_account = fund_token_account_pda(&fund, &fund_data.main_mint).0;
         let token_account_data = self.client.get_account_data(&token_account)?;
-        let token_account_data = Account::unpack(&token_account_data)?;
+        let token_account_data = SplTokenAccount::unpack(&token_account_data)?;
         Ok((token_account, token_account_data))
     }
 
     fn get_fund_token_account_data(
         &self,
         mint: Pubkey,
-    ) -> Result<(Pubkey, Account), Box<dyn std::error::Error>> {
+    ) -> Result<(Pubkey, SplTokenAccount), Box<dyn std::error::Error>> {
         let fund = fund_pda(&self.fund_manager.pubkey()).0;
         let token_account = fund_token_account_pda(&fund, &mint).0;
         let token_account_data = self.client.get_account_data(&token_account)?;
-        let token_account_data = Account::unpack(&token_account_data)?;
+        let token_account_data = SplTokenAccount::unpack(&token_account_data)?;
         Ok((token_account, token_account_data))
     }
 
@@ -483,31 +488,59 @@ async fn do_swap(config: &YokoConfig) {
     println!("Transaction successful! Signature: {}", signature);
 }
 
+pub fn fetch_program_accounts(
+    program_id: &Pubkey,
+    connection: &RpcClient,
+) -> Result<Vec<(Pubkey, Account)>, Box<dyn std::error::Error>> {
+    let config = RpcProgramAccountsConfig {
+        filters: Some(vec![RpcFilterType::DataSize(
+            std::mem::size_of::<Position>() as u64 + 8,
+        )]),
+        account_config: RpcAccountInfoConfig {
+            encoding: Some(UiAccountEncoding::Base64),
+            ..RpcAccountInfoConfig::default()
+        },
+        ..RpcProgramAccountsConfig::default()
+    };
+
+    let accounts = connection.get_program_accounts_with_config(program_id, config)?;
+    Ok(accounts)
+}
+
 #[tokio::main]
 async fn main() {
     let config = YokoConfig::new();
 
-    let (fund, fund_data) = config.get_fund().unwrap();
-    println!("fund: {:?}", fund);
-    println!("fund_data: {:?}", fund_data);
+    let program_id = Pubkey::from_str("4NmD5nA9Rd8SCgW6kXyG1zzUGkfDg3TUiZTmPEMM3ZLU").unwrap();
+    let accounts = fetch_program_accounts(&program_id, &config.client).unwrap();
+    println!("accounts len: {:?}", accounts.len());
 
-    for mint in fund_data.other_mints.iter() {
-        println!("mint: {:?}", mint);
-        let (token_account, token_account_data) =
-            config.get_fund_token_account_data(*mint).unwrap();
-        println!("token_account: {:?}", token_account);
-        println!("token_account_data: {:?}", token_account_data);
+    for (pubkey, account) in accounts {
+        let parsed_account = Position::try_from_bytes(&account.data).unwrap();
+        println!("Account {}: {:?}", pubkey, parsed_account);
     }
 
-    let fund_main_token_account_data = config.get_fund_main_token_account_data().unwrap();
-    println!(
-        "fund_main_token_account_data: {:?}",
-        fund_main_token_account_data
-    );
+    // let (fund, fund_data) = config.get_fund().unwrap();
+    // println!("fund: {:?}", fund);
+    // println!("fund_data: {:?}", fund_data);
 
-    let (position, position_data) = config.get_position().unwrap();
-    println!("position: {:?}", position);
-    println!("position_data: {:?}", position_data);
+    // for mint in fund_data.other_mints.iter() {
+    //     println!("mint: {:?}", mint);
+    //     let (token_account, token_account_data) =
+    //         config.get_fund_token_account_data(*mint).unwrap();
+    //     println!("token_account: {:?}", token_account);
+    //     println!("token_account_data: {:?}", token_account_data);
+    // }
+
+    // let fund_main_token_account_data = config.get_fund_main_token_account_data().unwrap();
+    // println!(
+    //     "fund_main_token_account_data: {:?}",
+    //     fund_main_token_account_data
+    // );
+
+    // let (position, position_data) = config.get_position().unwrap();
+    // println!("position: {:?}", position);
+    // println!("position_data: {:?}", position_data);
 
     // do_swap(&config).await;
 

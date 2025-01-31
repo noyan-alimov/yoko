@@ -491,20 +491,24 @@ async fn do_swap(config: &YokoConfig) {
 pub fn fetch_program_accounts(
     program_id: &Pubkey,
     connection: &RpcClient,
-) -> Result<Vec<(Pubkey, Account)>, Box<dyn std::error::Error>> {
+) -> Result<Vec<Pubkey>, Box<dyn std::error::Error>> {
     let config = RpcProgramAccountsConfig {
         filters: Some(vec![RpcFilterType::DataSize(
             std::mem::size_of::<Position>() as u64 + 8,
         )]),
         account_config: RpcAccountInfoConfig {
             encoding: Some(UiAccountEncoding::Base64),
+            data_slice: Some(UiDataSliceConfig {
+                offset: 0,
+                length: 0,  // Request 0 bytes of data
+            }),
             ..RpcAccountInfoConfig::default()
         },
         ..RpcProgramAccountsConfig::default()
     };
 
     let accounts = connection.get_program_accounts_with_config(program_id, config)?;
-    Ok(accounts)
+    Ok(accounts.into_iter().map(|(pubkey, _)| pubkey).collect())
 }
 
 #[tokio::main]
@@ -514,11 +518,6 @@ async fn main() {
     let program_id = Pubkey::from_str("4NmD5nA9Rd8SCgW6kXyG1zzUGkfDg3TUiZTmPEMM3ZLU").unwrap();
     let accounts = fetch_program_accounts(&program_id, &config.client).unwrap();
     println!("accounts len: {:?}", accounts.len());
-
-    for (pubkey, account) in accounts {
-        let parsed_account = Position::try_from_bytes(&account.data).unwrap();
-        println!("Account {}: {:?}", pubkey, parsed_account);
-    }
 
     // let (fund, fund_data) = config.get_fund().unwrap();
     // println!("fund: {:?}", fund);
